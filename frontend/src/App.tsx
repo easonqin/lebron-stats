@@ -11,7 +11,7 @@ import GameCard from './components/GameCard';
 import './index.css';
 import { format } from 'date-fns';
 
-const API_BASE_URL = 'http://localhost:8000/api';
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://lebron-stats-production.up.railway.app/api';
 
 // 创建路由器
 const router = createBrowserRouter(
