@@ -12,12 +12,15 @@ from pathlib import Path
 import time
 from requests.exceptions import RequestException, ProxyError
 import random
+import sys
 
 # 配置日志
 logging.basicConfig(
-    level=logging.DEBUG,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[logging.StreamHandler(sys.stdout)]
 )
+
 logger = logging.getLogger(__name__)
 
 app = FastAPI()
@@ -229,6 +232,12 @@ except Exception as e:
     logger.error(f"Error getting LeBron's ID: {str(e)}")
     LEBRON_ID = 2544  # LeBron的固定ID
 
+@app.on_event("startup")
+async def startup_event():
+    """应用启动时的事件处理"""
+    logger.info("Application startup")
+    logger.info(f"Environment: PORT={os.getenv('PORT')}")
+
 def get_cache_path(month: str) -> Path:
     return CACHE_DIR / f"stats_{month}.json"
 
@@ -271,17 +280,21 @@ def fetch_nba_data(season: str, max_retries: int = 3) -> pd.DataFrame:
 
 @app.get("/")
 async def root():
+    """根路径处理"""
+    logger.info("Root endpoint called")
     return {"message": "LeBron James Stats API"}
 
 @app.get("/health")
 async def health_check():
+    """健康检查端点"""
+    logger.info("Health check endpoint called")
     return {"status": "healthy"}
 
 @app.get("/api/stats/{month}")
 async def get_lebron_stats(month: str):
     """获取勒布朗指定月份的比赛数据"""
     try:
-        logger.debug(f"Received request for month: {month}")
+        logger.info(f"Fetching stats for month: {month}")
         
         # 尝试从缓存加载数据
         cached_data = load_from_cache(month)
@@ -368,9 +381,8 @@ async def get_lebron_stats(month: str):
         return {'games': games_data}
     
     except Exception as e:
-        logger.error(f"Error processing request: {str(e)}")
-        # 发生错误时返回测试数据
-        return SAMPLE_GAME_DATA.get(month, {"games": []})
+        logger.error(f"Error processing request for month {month}: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/game/{date}")
 async def get_game(date: str):
@@ -384,6 +396,12 @@ async def get_game(date: str):
         raise HTTPException(status_code=404, detail="Game not found")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request, exc):
+    """全局异常处理"""
+    logger.error(f"Global exception: {str(exc)}")
+    return {"detail": "Internal server error", "message": str(exc)}
 
 if __name__ == "__main__":
     import uvicorn
